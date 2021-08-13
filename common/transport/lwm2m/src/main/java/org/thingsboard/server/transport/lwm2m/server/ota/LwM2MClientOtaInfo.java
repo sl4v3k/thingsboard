@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -48,6 +48,8 @@ public abstract class LwM2MClientOtaInfo<Strategy, State, Result> {
     protected String currentName;
     protected String currentVersion3;
     protected String currentVersion;
+
+    protected volatile boolean inProgress;
 
     public LwM2MClientOtaInfo(String endpoint, String baseUrl, Strategy strategy) {
         this.endpoint = endpoint;
@@ -109,5 +111,12 @@ public abstract class LwM2MClientOtaInfo<Strategy, State, Result> {
     @JsonIgnore
     public String getTargetPackageId() {
         return getPackageId(targetName, targetVersion);
+    }
+
+    public void resetProgressIfNeeded() {
+        if (OtaPackageUpdateStatus.UPDATED.equals(status) ||
+                OtaPackageUpdateStatus.FAILED.equals(status)) {
+            inProgress = false;
+        }
     }
 }

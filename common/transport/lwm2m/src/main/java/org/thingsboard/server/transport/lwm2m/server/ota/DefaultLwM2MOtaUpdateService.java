@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -381,54 +381,70 @@ public class DefaultLwM2MOtaUpdateService extends LwM2MExecutorAwareService impl
 
     @Override
     public void onTargetSoftwareUpdate(LwM2mClient client, String newSoftwareTitle, String newSoftwareVersion, Optional<String> newSoftwareUrl, Optional<String> newSoftwareTag) {
-        LwM2MClientSwOtaInfo fwInfo = getOrInitSwInfo(client);
-        fwInfo.updateTarget(newSoftwareTitle, newSoftwareVersion, newSoftwareUrl, newSoftwareTag);
-        update(fwInfo);
-        startSoftwareUpdateIfNeeded(client, fwInfo);
+        LwM2MClientSwOtaInfo swInfo = getOrInitSwInfo(client);
+        swInfo.updateTarget(newSoftwareTitle, newSoftwareVersion, newSoftwareUrl, newSoftwareTag);
+        update(swInfo);
+        startSoftwareUpdateIfNeeded(client, swInfo);
     }
 
     private void startFirmwareUpdateIfNeeded(LwM2mClient client, LwM2MClientFwOtaInfo fwInfo) {
+        client.lock();
         try {
             if (!fwInfo.isSupported() && fwInfo.isAssigned()) {
                 log.debug("[{}] Fw update is not supported: {}", client.getEndpoint(), fwInfo);
                 sendStateUpdateToTelemetry(client, fwInfo, OtaPackageUpdateStatus.FAILED, "Client does not support firmware update or profile misconfiguration!");
             } else if (fwInfo.isUpdateRequired()) {
-                if (StringUtils.isNotEmpty(fwInfo.getTargetUrl())) {
-                    log.debug("[{}] Starting update to [{}{}][] using URL: {}", client.getEndpoint(), fwInfo.getTargetName(), fwInfo.getTargetVersion(), fwInfo.getTargetUrl());
-                    startUpdateUsingUrl(client, FW_URL_ID, fwInfo.getTargetUrl());
+                if (!fwInfo.isInProgress()) {
+                    fwInfo.setInProgress(true);
+                    if (StringUtils.isNotEmpty(fwInfo.getTargetUrl())) {
+                        log.debug("[{}] Starting update to [{}{}][] using URL: {}", client.getEndpoint(), fwInfo.getTargetName(), fwInfo.getTargetVersion(), fwInfo.getTargetUrl());
+                        startUpdateUsingUrl(client, FW_URL_ID, fwInfo.getTargetUrl());
+                    } else {
+                        log.debug("[{}] Starting update to [{}{}] using binary", client.getEndpoint(), fwInfo.getTargetName(), fwInfo.getTargetVersion());
+                        startUpdateUsingBinary(client, fwInfo);
+                    }
                 } else {
-                    log.debug("[{}] Starting update to [{}{}] using binary", client.getEndpoint(), fwInfo.getTargetName(), fwInfo.getTargetVersion());
-                    startUpdateUsingBinary(client, fwInfo);
+                    log.info("[{}] firmware update is already in progress: {}", client.getEndpoint(), fwInfo);
                 }
             }
         } catch (Exception e) {
             log.info("[{}] failed to update client: {}", client.getEndpoint(), fwInfo, e);
             sendStateUpdateToTelemetry(client, fwInfo, OtaPackageUpdateStatus.FAILED, "Internal server error: " + e.getMessage());
+        } finally {
+            client.unlock();
         }
     }
 
     private void startSoftwareUpdateIfNeeded(LwM2mClient client, LwM2MClientSwOtaInfo swInfo) {
+        client.lock();
         try {
             if (!swInfo.isSupported() && swInfo.isAssigned()) {
                 log.debug("[{}] Sw update is not supported: {}", client.getEndpoint(), swInfo);
                 sendStateUpdateToTelemetry(client, swInfo, OtaPackageUpdateStatus.FAILED, "Client does not support software update or profile misconfiguration!");
             } else if (swInfo.isUpdateRequired()) {
-                if (SoftwareUpdateState.INSTALLED.equals(swInfo.getUpdateState())) {
-                    log.debug("[{}] Attempt to restore the update state: {}", client.getEndpoint(), swInfo.getUpdateState());
-                    executeSwUninstallForUpdate(client);
-                } else {
-                    if (StringUtils.isNotEmpty(swInfo.getTargetUrl())) {
-                        log.debug("[{}] Starting update to [{}{}] using URL: {}", client.getEndpoint(), swInfo.getTargetName(), swInfo.getTargetVersion(), swInfo.getTargetUrl());
-                        startUpdateUsingUrl(client, SW_PACKAGE_URI_ID, swInfo.getTargetUrl());
+                if (!swInfo.isInProgress()) {
+                    swInfo.setInProgress(true);
+                    if (SoftwareUpdateState.INSTALLED.equals(swInfo.getUpdateState())) {
+                        log.debug("[{}] Attempt to restore the update state: {}", client.getEndpoint(), swInfo.getUpdateState());
+                        executeSwUninstallForUpdate(client);
                     } else {
-                        log.debug("[{}] Starting update to [{}{}] using binary", client.getEndpoint(), swInfo.getTargetName(), swInfo.getTargetVersion());
-                        startUpdateUsingBinary(client, swInfo);
+                        if (StringUtils.isNotEmpty(swInfo.getTargetUrl())) {
+                            log.debug("[{}] Starting update to [{}{}] using URL: {}", client.getEndpoint(), swInfo.getTargetName(), swInfo.getTargetVersion(), swInfo.getTargetUrl());
+                            startUpdateUsingUrl(client, SW_PACKAGE_URI_ID, swInfo.getTargetUrl());
+                        } else {
+                            log.debug("[{}] Starting update to [{}{}] using binary", client.getEndpoint(), swInfo.getTargetName(), swInfo.getTargetVersion());
+                            startUpdateUsingBinary(client, swInfo);
+                        }
                     }
+                } else {
+                    log.info("[{}] software update is already in progress: {}", client.getEndpoint(), swInfo);
                 }
             }
         } catch (Exception e) {
             log.info("[{}] failed to update client: {}", client.getEndpoint(), swInfo, e);
             sendStateUpdateToTelemetry(client, swInfo, OtaPackageUpdateStatus.FAILED, "Internal server error: " + e.getMessage());
+        } finally {
+            client.unlock();
         }
     }
 
@@ -587,10 +603,12 @@ public class DefaultLwM2MOtaUpdateService extends LwM2MExecutorAwareService impl
     }
 
     private void update(LwM2MClientFwOtaInfo info) {
+        info.resetProgressIfNeeded();
         otaInfoStore.putFw(info);
     }
 
     private void update(LwM2MClientSwOtaInfo info) {
+        info.resetProgressIfNeeded();
         otaInfoStore.putSw(info);
     }
 
