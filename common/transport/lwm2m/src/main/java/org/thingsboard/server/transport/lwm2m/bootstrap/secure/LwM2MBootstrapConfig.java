@@ -17,8 +17,6 @@ package org.thingsboard.server.transport.lwm2m.bootstrap.secure;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
 import org.eclipse.leshan.core.SecurityMode;
 import org.eclipse.leshan.core.request.BindingMode;
 import org.eclipse.leshan.core.util.Hex;
@@ -43,9 +41,7 @@ public class LwM2MBootstrapConfig implements Serializable {
      *   notifIfDisabled: boolean,
      *   binding: string
      * */
-    @Getter
-    @Setter
-    private LwM2MBootstrapServers servers;
+    LwM2MBootstrapServers servers;
 
     /** -bootstrapServer, lwm2mServer
      * interface ServerSecurityConfig
@@ -60,13 +56,9 @@ public class LwM2MBootstrapConfig implements Serializable {
      *   serverId?: number,
      *   bootstrapServerAccountTimeout: number
      * */
-    @Getter
-    @Setter
-    private LwM2MServerBootstrap bootstrapServer;
+    LwM2MServerBootstrap bootstrapServer;
 
-    @Getter
-    @Setter
-    private LwM2MServerBootstrap lwm2mServer;
+    LwM2MServerBootstrap lwm2mServer;
 
     @JsonIgnore
     public BootstrapConfig getLwM2MBootstrapConfig() {

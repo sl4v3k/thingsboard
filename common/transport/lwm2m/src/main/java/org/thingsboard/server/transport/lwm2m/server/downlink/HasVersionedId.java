@@ -15,14 +15,14 @@
  */
 package org.thingsboard.server.transport.lwm2m.server.downlink;
 
-import org.thingsboard.server.transport.lwm2m.utils.LwM2MTransportUtil;
+import org.thingsboard.server.transport.lwm2m.utils.LwM2mTransportUtil;
 
 public interface HasVersionedId {
 
     String getVersionedId();
 
     default String getObjectId(){
-        return LwM2MTransportUtil.fromVersionedIdToObjectId(getVersionedId());
+        return LwM2mTransportUtil.fromVersionedIdToObjectId(getVersionedId());
     }
 
 }
